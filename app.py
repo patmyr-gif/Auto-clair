@@ -101,7 +101,7 @@ def extract(text):
     o["service_date"] = grab(r"(?:mise en circulation|mise en service)\D{0,15}(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})", text)
     o["technical_inspection_date"] = grab(r"(?:contrôle technique|controle technique|CT)\D{0,15}(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})", text)
     o["address"] = grab(r"(?:adresse)\s*[:#-]?\s*([^\n]{5,150})", text)
-    o["conditions"] = grab(r"(?:devis valable[^\n]*|sous réserve de[^\n]*|sous reserve de[^\n]*)", text)
+    o["conditions"] = clean(re.search(r"(?:devis valable[^\n]*|sous réserve de[^\n]*|sous reserve de[^\n]*)", text, re.I | re.M).group(0)) if re.search(r"(?:devis valable[^\n]*|sous réserve de[^\n]*|sous reserve de[^\n]*)", text, re.I | re.M) else ""
     o["total_ttc"] = money(grab(r"(?:total\s+TTC|net\s+à\s+payer|total\s+à\s+payer)\D{0,20}([\d\s.,]+)", text))
     o["total_ht"] = money(grab(r"(?:total\s+HT|hors\s+taxe)\D{0,20}([\d\s.,]+)", text))
     o["vat"] = money(grab(r"(?:TVA|taxe)\D{0,20}([\d\s.,]+)", text))
