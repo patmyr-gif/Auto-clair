@@ -178,8 +178,15 @@ def ocr_image(content: bytes) -> str:
     if not (Image and ImageOps and pytesseract):
         raise RuntimeError("Le module OCR n'est pas disponible sur le serveur.")
     image = Image.open(io.BytesIO(content)).convert("L")
+    # Telephone photos can be 12–48 MP. Restricting the working image keeps
+    # Tesseract inside Render's free-instance memory limit while retaining
+    # enough detail for a document photographed at normal distance.
+    image.thumbnail((1800, 1800), Image.Resampling.LANCZOS)
     image = ImageOps.autocontrast(image)
-    return pytesseract.image_to_string(image, lang="fra", config="--oem 3 --psm 6")
+    try:
+        return pytesseract.image_to_string(image, lang="fra", config="--oem 3 --psm 6", timeout=25)
+    except RuntimeError as exc:
+        raise RuntimeError("Lecture trop longue : recadrez le devis ou prenez une photo plus nette.") from exc
 
 
 @app.get("/")
