@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Auto Clair V31 Mobile</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f7fa;color:#17202a;font-family:Arial,sans-serif}
+.wrap{max-width:780px;margin:auto;padding:18px}.card{background:#fff;border-radius:18px;padding:22px;margin:14px 0;box-shadow:0 4px 18px #0001}
+h1{margin:0 0 3px;font-size:29px}h2{margin-top:4px}.muted{color:#69737d;line-height:1.45}
+.drop{border:2px dashed #aeb8c1;border-radius:16px;padding:26px 16px;text-align:center;background:#fafbfc}
+button{border:0;border-radius:12px;padding:13px 18px;font-weight:700;background:#17202a;color:#fff;cursor:pointer} .progress{height:8px;background:#e8edf1;border-radius:99px;overflow:hidden;margin-top:10px}.progress i{display:block;height:100%;width:0;background:#17202a;transition:width .2s}
+button:disabled{opacity:.45}.secondary{background:#e9edf1;color:#17202a}.row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.status{padding:12px;border-radius:11px;background:#edf2f6;margin:12px 0}.ok{background:#eaf7ee}.warn{background:#fff4dc}.err{background:#fdeaea}
+.hidden{display:none}.files{font-size:14px;margin-top:12px}.file{padding:8px 0;border-bottom:1px solid #eee}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}
+label{display:block;font-size:13px;font-weight:700;margin:10px 0 5px}
+input,textarea{width:100%;padding:11px;border:1px solid #ccd3da;border-radius:9px;font-size:15px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:7px;border-bottom:1px solid #e5e8eb;text-align:left}
+td input{padding:8px;font-size:13px}.actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+pre{white-space:pre-wrap;max-height:260px;overflow:auto;background:#f3f5f7;padding:12px;border-radius:10px;font-size:12px}
+.small{font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card"><h1>Auto Clair</h1><div class="muted">V31 Mobile · lecture de devis optimisée téléphone</div></div>
+
+<section id="p1" class="card">
+<h2>1. Déposez votre devis</h2>
+<p class="muted">Aucune information sur le véhicule n'est demandée ici. Le document est le point de départ.</p>
+<div class="drop">
+<input id="files" type="file" accept="image/*,.pdf,application/pdf" multiple>
+<p>Photo, scan ou PDF · plusieurs pages/photos possibles</p>
+<button onclick="files.click()">📷 Choisir / photographier le devis</button>
+</div>
+<div id="fl" class="files"></div>
+<div id="st" class="status hidden"></div><div id="prog" class="progress hidden"><i></i></div>
+<div class="actions"><button id="go" disabled onclick="ocr()">Lire le devis</button></div>
+</section>
+
+<section id="p2" class="card hidden">
+<h2>2. Vérifiez les informations</h2>
+<p class="muted">Auto Clair ne doit rien inventer. Contrôlez les champs détectés et corrigez-les avant l'analyse.</p>
+<div id="score" class="status"></div>
+<div class="grid">
+<div><label>Client</label><input id="client"></div><div><label>Garage</label><input id="garage"></div>
+<div class="full"><label>Véhicule</label><input id="vehicle"></div>
+<div class="full"><label>Motorisation</label><input id="motorization"></div>
+<div><label>Cylindrée</label><input id="engine_displacement"></div>
+<div><label>Puissance</label><input id="power"></div>
+<div><label>Année</label><input id="year"></div><div><label>Kilométrage</label><input id="mileage"></div>
+<div><label>Immatriculation</label><input id="registration"></div><div><label>VIN</label><input id="vin"></div>
+<div><label>N° devis</label><input id="quote_number"></div><div><label>Date du devis</label><input id="quote_date"></div><div><label>Valable jusqu’au</label><input id="valid_until"></div><div><label>Mise en circulation</label><input id="service_date"></div><div><label>Contrôle technique</label><input id="technical_inspection_date"></div>
+<div class="full"><label>Adresse / informations complémentaires</label><input id="address"></div>
+<div class="full"><label>Symptômes / demande client</label><textarea id="symptoms" rows="4"></textarea></div><div class="full"><label>Mentions importantes du devis</label><textarea id="conditions" rows="2"></textarea></div>
+</div>
+<h3>Lignes du devis</h3><div id="lines"></div>
+<h3>Totaux</h3>
+<div class="grid">
+<div><label>Total HT</label><input id="total_ht"></div><div><label>TVA</label><input id="vat"></div><div><label>Total TTC</label><input id="total_ttc"></div>
+</div>
+<details><summary>Texte brut OCR</summary><pre id="raw"></pre></details>
+<div class="actions"><button class="secondary" onclick="page(1)">← Document</button><button onclick="analyze()">Valider et analyser →</button></div>
+</section>
+
+<section id="p3" class="card hidden">
+<h2>3. Analyse Auto Clair</h2><div id="result" class="status">Analyse en cours…</div>
+<div class="actions"><button class="secondary" onclick="page(2)">← Vérifier</button></div>
+</section>
+</div>
+
+<script>
+let chosen=[];
+const files=document.getElementById('files');
+files.onchange=()=>{chosen=[...files.files];document.getElementById('fl').innerHTML=chosen.map(f=>`<div class="file">📄 ${esc(f.name)} · ${(f.size/1024/1024).toFixed(2)} Mo</div>`).join('');document.getElementById('go').disabled=!chosen.length;status('Document prêt. La photo sera allégée automatiquement avant l’envoi.');};
+async function compressImage(file){
+ if(!file.type.startsWith('image/')) return file;
+ const bmp=await createImageBitmap(file); const max=1800; const scale=Math.min(1,max/Math.max(bmp.width,bmp.height));
+ const w=Math.max(1,Math.round(bmp.width*scale)),h=Math.max(1,Math.round(bmp.height*scale));
+ const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');ctx.drawImage(bmp,0,0,w,h);bmp.close();
+ const blob=await new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('Compression photo impossible')),'image/jpeg',0.72));
+ return new File([blob],(file.name.replace(/\.[^.]+$/,'')||'devis')+'_AC.jpg',{type:'image/jpeg'});
+}
+
+async function ocr(){
+ status('Préparation des photos…'); document.getElementById('prog').classList.remove('hidden'); document.querySelector('#prog i').style.width='10%';
+ try{
+ const fd=new FormData();
+ for(let i=0;i<chosen.length;i++){const f=chosen[i];const out=await compressImage(f);fd.append('files',out);document.querySelector('#prog i').style.width=((i+1)/chosen.length*55)+'%';}
+ status('Lecture du devis en cours…'); document.querySelector('#prog i').style.width='65%';
+ try{const r=await fetch('/api/ocr',{method:'POST',body:fd});const ct=r.headers.get('content-type')||'';let d;if(ct.includes('application/json')){d=await r.json()}else{const t=await r.text();throw Error('Le serveur a renvoyé une réponse inattendue ('+r.status+'). Réessayez dans quelques instants.')}if(!r.ok)throw Error(d.error||'Erreur OCR');fill(d);page(2)}
+ document.querySelector('#prog i').style.width='100%'; setTimeout(()=>document.getElementById('prog').classList.add('hidden'),500);
+ }catch(e){document.getElementById('prog').classList.add('hidden');status('La lecture a échoué : '+e.message,'err')}
+}
+function fill(d){
+ ['client','garage','vehicle','motorization','engine_displacement','power','year','mileage','registration','vin','quote_number','quote_date','valid_until','service_date','technical_inspection_date','symptoms','conditions','address','total_ht','vat','total_ttc'].forEach(k=>document.getElementById(k).value=d[k]||'');
+ document.getElementById('raw').textContent=d.raw_text||'';
+ document.getElementById('score').innerHTML=`<b>${d.pages_read||0} page(s) lue(s)</b> · ${d.detected_fields||0} champs détectés · confiance OCR moyenne : ${Math.round((d.ocr_confidence||0)*100)}%. ${esc(d.note||'')}`;
+ const lines=d.lines||[];
+ document.getElementById('lines').innerHTML=lines.length?`<table><thead><tr><th>Désignation</th><th>Qté</th><th>PU HT</th><th>Total HT</th><th>Total TTC</th></tr></thead><tbody>${lines.map((x,i)=>`<tr><td><input data-i="${i}" data-k="description" value="${attr(x.description)}"></td><td><input data-i="${i}" data-k="quantity" value="${attr(x.quantity)}"></td><td><input data-i="${i}" data-k="unit_ht" value="${attr(x.unit_ht)}"></td><td><input data-i="${i}" data-k="total_ht" value="${attr(x.total_ht)}"></td><td><input data-i="${i}" data-k="total_ttc" value="${attr(x.total_ttc)}"></td></tr>`).join('')}</tbody></table>`:'<p class="muted">Aucune ligne suffisamment fiable n’a été structurée. Le texte OCR reste disponible ci-dessus.</p>';
+}
+function collect(){
+ const d={};['client','garage','vehicle','motorization','engine_displacement','power','year','mileage','registration','vin','quote_number','quote_date','valid_until','service_date','technical_inspection_date','symptoms','conditions','address','total_ht','vat','total_ttc'].forEach(k=>d[k]=document.getElementById(k).value.trim());
+ const a=[];document.querySelectorAll('[data-i]').forEach(el=>{const i=+el.dataset.i;a[i]??={};a[i][el.dataset.k]=el.value});d.lines=a;return d;
+}
+async function analyze(){
+ page(3);try{const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(collect())});const ct=r.headers.get('content-type')||'';let d;if(ct.includes('application/json')){d=await r.json()}else{throw Error('Le serveur a renvoyé une réponse inattendue ('+r.status+').')}if(!r.ok)throw Error(d.error||'Erreur');document.getElementById('result').innerHTML=`<b>${esc(d.title)}</b><br>${esc(d.summary)}<h3>Points à vérifier</h3><ul>${(d.checks||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul><p class="small">Analyse indicative : Auto Clair alerte et demande des vérifications ; il ne certifie pas une panne à partir du seul devis.</p>`}catch(e){document.getElementById('result').className='status err';document.getElementById('result').textContent=e.message}}
+function page(n){[1,2,3].forEach(i=>document.getElementById('p'+i).classList.toggle('hidden',i!==n))}
+function status(t,c=''){const x=document.getElementById('st');x.className='status '+c;x.textContent=t;x.classList.remove('hidden')}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function attr(s){return esc(s)}
+</script>
+</body>
+</html>
