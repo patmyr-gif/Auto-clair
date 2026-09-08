@@ -181,10 +181,12 @@ def ocr_image(content: bytes) -> str:
     # Telephone photos can be 12–48 MP. Restricting the working image keeps
     # Tesseract inside Render's free-instance memory limit while retaining
     # enough detail for a document photographed at normal distance.
-    image.thumbnail((1800, 1800), Image.Resampling.LANCZOS)
+    # A 1200 px working image is sufficient for the printed labels and avoids
+    # a long-running OCR process on Render's small free instance.
+    image.thumbnail((1200, 1200), Image.Resampling.LANCZOS)
     image = ImageOps.autocontrast(image)
     try:
-        return pytesseract.image_to_string(image, lang="fra", config="--oem 3 --psm 6", timeout=25)
+        return pytesseract.image_to_string(image, lang="fra", config="--oem 3 --psm 11", timeout=45)
     except RuntimeError as exc:
         raise RuntimeError("Lecture trop longue : recadrez le devis ou prenez une photo plus nette.") from exc
 
